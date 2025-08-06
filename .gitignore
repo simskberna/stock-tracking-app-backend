@@ -46,3 +46,4 @@ dump.rdb
 *.sqlite3
 
 .idea/
+idea/

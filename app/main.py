@@ -1,13 +1,14 @@
 import asyncio
 
-from fastapi import FastAPI, Depends, HTTPException,WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status, Depends
+from sqlalchemy import text, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-from app.routers import auth, users, ws, products, metrics
-from app.database import get_db, Base, engine
+from starlette.middleware.cors import CORSMiddleware
+
+from app.models import Order
+from app.routers import auth, users, ws, products, metrics, orders
+from app.database import Base, engine, AsyncSessionLocal, get_db
 from app.routers.ws import manager
-from app.schemas import ProductCreate, ProductOut, OrderCreate, OrderOut
-from app.repositories.order_repository import OrderRepository
 from app.security import verify_token
 from app.tasks import periodic_critical_stock_check
 
@@ -16,17 +17,26 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(products.router, prefix="/products", tags=["products"])
-app.include_router(products.router, prefix="/orders", tags=["orders"])
+app.include_router(orders.router, prefix="/orders", tags=["orders"])
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 app.include_router(ws.router)
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8080"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.on_event("startup")
 async def startup():
-    # Veritabanı tablolarını oluşturur
+    # ceritabanı tablolarını oluşturur
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    # Periyodik kritik stok kontrolünü başlat
+    # periyodik kritik stok kontrolünü başlat
     asyncio.create_task(periodic_critical_stock_check())
 
 @app.websocket("/ws")

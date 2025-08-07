@@ -31,10 +31,11 @@ class OrderOut(BaseModel):
     id: int
     product_id: int
     quantity: int
+    total: int
     order_date: datetime
 
     class Config:
-        orm_mode = True  # V2 için: from_attributes = True
+        orm_mode = True
 
 class UserCreate(BaseModel):
     email: EmailStr

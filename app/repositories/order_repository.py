@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Order
+from app.models import Order, Product
 from app.schemas import OrderCreate
 from app.tasks import update_stock
 
@@ -10,16 +10,25 @@ class OrderRepository:
         self.db = db
 
     async def create(self, order_create: OrderCreate):
-        # Siparişi önce veritabanına ekle
+        product_result = await self.db.execute(
+            select(Product).where(Product.id == order_create.product_id)
+        )
+        product = product_result.scalar_one_or_none()
+
+        if not product:
+            raise ValueError("Product not found")
+
+        total = product.price * order_create.quantity
+
         order = Order(
             product_id=order_create.product_id,
-            quantity=order_create.quantity
+            quantity=order_create.quantity,
+            total=total
         )
         self.db.add(order)
         await self.db.commit()
         await self.db.refresh(order)
 
-        # Arka planda stok güncelle
         await update_stock(order_create.product_id, order_create.quantity)
 
         return order

@@ -34,3 +34,12 @@ class ProductRepository:
         await self.db.commit()
         await self.db.refresh(product)
         return product
+
+    async def get_critical_stock_products(self, skip: int = 0, limit: int = 100):
+        result = await self.db.execute(
+            select(Product)
+            .where(Product.stock <= Product.critical_stock)
+            .offset(skip)
+            .limit(limit)
+        )
+        return result.scalars().all()

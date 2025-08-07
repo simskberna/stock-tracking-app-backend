@@ -11,13 +11,13 @@ class UserRepository:
         result = await self.session.execute(select(User).filter(User.email == email))
         return result.scalars().first()
 
-    async def create(self, email: str, password: str):
-        hashed_pw = hash_password(password)
-        user = User(email=email, hashed_password=hashed_pw)
-        self.session.add(user)
+    async def create(self, email: str, password: str, full_name: str):
+        hashed_password = hash_password(password)
+        new_user = User(email=email, hashed_password=hashed_password, full_name=full_name)
+        self.session.add(new_user)
         await self.session.commit()
-        await self.session.refresh(user)
-        return user
+
+        return new_user
 
     async def authenticate(self, email: str, password: str):
         user = await self.get_by_email(email)

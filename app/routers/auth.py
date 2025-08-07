@@ -1,8 +1,8 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from jose import jwt
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas import UserCreate, UserOut
@@ -13,14 +13,39 @@ from app.database import get_db
 SECRET_KEY = "your_secret_key"
 ALGORITHM = "HS256"
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+security = HTTPBearer()
 
 router = APIRouter()
+
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security),
+                           db: AsyncSession = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_email(email)
+    if user is None:
+        raise credentials_exception
+    return user
+
 
 async def get_user(db: AsyncSession, email: str):
     user_repo = UserRepository(db)
     user = await user_repo.get_by_email(email)
     return user
+
 
 @router.post("/register", response_model=UserOut)
 async def register(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
@@ -31,9 +56,11 @@ async def register(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
     user = await repo.create(user_create.email, user_create.password, user_create.full_name)
     return user
 
+
 class LoginRequest(BaseModel):
     email: str
     password: str
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -42,8 +69,8 @@ class TokenResponse(BaseModel):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    login_data: LoginRequest,
-    db: AsyncSession = Depends(get_db),
+        login_data: LoginRequest,
+        db: AsyncSession = Depends(get_db),
 ):
     user_repo = UserRepository(db)
     user = await user_repo.get_by_email(login_data.email)
@@ -63,9 +90,13 @@ async def login(
 
 
 @router.post("/logout")
-async def logout(token: str = Depends(oauth2_scheme)):
+async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         return {"message": "Logout successful. Please clear your token on the client side."}
-
-    except jwt.PyJWTError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@router.get("/me", response_model=UserOut)
+async def get_current_user_info(current_user=Depends(get_current_user)):
+    return current_user

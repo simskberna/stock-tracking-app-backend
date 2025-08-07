@@ -21,15 +21,11 @@ async def update_stock(product_id: int, quantity: int):
         product.stock -= quantity
         await session.commit()
 
-        if product.stock <= CRITICAL_STOCK_LEVEL:
-            # Burada bildirim logic yazabilirsin, örn. Redis'e event push et
-            print(f"Stok kritik seviyede: {product.id} - {product.stock}")
-
         return "Stock updated"
 
 async def check_critical_stock_and_notify():
     async for db in get_db():
-        print('FONKSIYONA GIRDI')
+
         product_repo = ProductRepository(db)
         products = await product_repo.list()
         for product in products:

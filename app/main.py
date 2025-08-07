@@ -1,13 +1,10 @@
 import asyncio
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status, Depends
-from sqlalchemy import text, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status
 from starlette.middleware.cors import CORSMiddleware
 
-from app.models import Order
 from app.routers import auth, users, ws, products, metrics, orders
-from app.database import Base, engine, AsyncSessionLocal, get_db
+from app.database import Base, engine
 from app.routers.ws import manager
 from app.security import verify_token
 from app.tasks import periodic_critical_stock_check
@@ -24,7 +21,7 @@ app.include_router(ws.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -7,3 +7,4 @@ python-jose
 pydantic
 python-multipart
 email-validator>=2.0.0
+websockets

@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models import Product
@@ -43,3 +44,9 @@ class ProductRepository:
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def count(self) -> int:
+        result = await self.db.execute(
+            select(func.count()).select_from(Product)
+        )
+        return result.scalar_one()

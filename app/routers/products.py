@@ -1,11 +1,9 @@
 from typing import List
 
-from fastapi import Depends, HTTPException, APIRouter
-from sqlalchemy import select, func
+from fastapi import Depends, HTTPException, APIRouter, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Product
 from app.notifications import notify_critical_stock
 from app.repositories.product_repository import ProductRepository
 from app.schemas import ProductUpdate, ProductCreate, ProductOut
@@ -42,7 +40,7 @@ async def create_product(
     db_product = await repo.create(product)
     return db_product
 
-@router.get("/list/", response_model=List[ProductOut])
+@router.get("/list/")
 async def list_products(
     skip: int = 0,
     limit: int = 100,
@@ -50,7 +48,12 @@ async def list_products(
 ):
     repo = ProductRepository(db)
     products = await repo.list(skip, limit)
-    return products
+    total = await repo.count()
+
+    return {
+        "data": products,
+        "total": total
+    }
 
 @router.get("/critical_stock_list/", response_model=List[ProductOut])
 async def list_critical_stock_products(

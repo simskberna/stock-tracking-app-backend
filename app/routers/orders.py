@@ -1,7 +1,6 @@
 from typing import List
 
 from fastapi import Depends, HTTPException, APIRouter
-from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db

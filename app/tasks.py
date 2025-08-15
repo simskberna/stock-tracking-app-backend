@@ -1,14 +1,14 @@
 import asyncio
-
-from app.models import Product
-from app.database import AsyncSessionLocal, get_db
-from app.models import Product
+from datetime import datetime
 from sqlalchemy.future import select
 
+from app.emails import send_bulk_test_email
+from app.models import Product
+from app.database import AsyncSessionLocal, get_db
 from app.repositories.product_repository import ProductRepository
-from app.routers.ws import manager
+from app.events.event_bus import event_bus, EventType, logger
+from app.websocket_manager import manager
 
-CRITICAL_STOCK_LEVEL = 5
 
 async def update_stock(product_id: int, quantity: int):
     async with AsyncSessionLocal() as session:
@@ -18,14 +18,26 @@ async def update_stock(product_id: int, quantity: int):
             return "Product not found"
         if product.stock < quantity:
             return "Insufficient stock"
+
+        old_stock = product.stock
         product.stock -= quantity
         await session.commit()
 
+        # Stok kritik seviyeye düştüyse event publish et
+        if product.stock <= product.critical_stock and old_stock > product.critical_stock:
+            await event_bus.publish(EventType.CRITICAL_STOCK, {
+                "product_id": product.id,
+                "product_name": product.name,
+                "stock_level": product.stock,
+                "critical_level": product.critical_stock,
+                "timestamp": datetime.now().isoformat()
+            })
+
         return "Stock updated"
+
 
 async def check_critical_stock_and_notify():
     async for db in get_db():
-
         product_repo = ProductRepository(db)
         products = await product_repo.list()
         for product in products:
@@ -36,5 +48,22 @@ async def check_critical_stock_and_notify():
 
 async def periodic_critical_stock_check():
     while True:
-        await check_critical_stock_and_notify()
+        try:
+            await check_critical_stock_and_notify()
+        except Exception as e:
+            logger.error(f"Error in periodic stock check: {e}")
         await asyncio.sleep(300)  # 5 dakikada bir çalışır
+
+
+async def send_email_critical_product(user_email: str, product):
+    """
+    Güncellenen ürün kritik stok seviyesindeyse email bildirimi gönderir
+    """
+    try:
+        if product.stock <= product.critical_stock:
+            print(f"📧 Sending email notification for product {product.id} to {user_email}...")
+            await send_bulk_test_email([product])
+        else:
+            print(f"✅ Product {product.id} stock is sufficient ({product.stock})")
+    except Exception as e:
+        print(f"❌ Error sending email for product {product.id}: {e}")

@@ -1,5 +1,4 @@
 import asyncio
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status
 from starlette.middleware.cors import CORSMiddleware
 
@@ -8,15 +7,21 @@ from app.database import Base, engine
 from app.routers.ws import manager
 from app.security import verify_token
 from app.tasks import periodic_critical_stock_check
+from app.events.event_bus import event_bus, EventType
+from app.handlers.notification_handlers import (
+    handle_critical_stock_notification,
+    handle_user_login_notification,
+    handle_user_logout_notification
+)
 
 app = FastAPI(title="Stok ve Sipariş Yönetim Sistemi")
+
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(products.router, prefix="/products", tags=["products"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 app.include_router(ws.router)
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,11 +34,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    # ceritabanı tablolarını oluşturur
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    # periyodik kritik stok kontrolünü başlat
+
+    event_bus.subscribe(EventType.CRITICAL_STOCK, handle_critical_stock_notification)
+    event_bus.subscribe(EventType.USER_LOGIN, handle_user_login_notification)
+    event_bus.subscribe(EventType.USER_LOGOUT, handle_user_logout_notification)
+
     asyncio.create_task(periodic_critical_stock_check())
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -47,6 +56,6 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            await manager.send_personal_message(f"You said: {data}", user_email)
+            await manager.send_personal_message(user_email, {"message": f"You said: {data}"})
     except WebSocketDisconnect:
         manager.disconnect(user_email)

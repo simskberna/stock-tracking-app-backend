@@ -1,9 +1,11 @@
-# app/websocket_manager.py
+import asyncio
 from typing import Dict, Optional
 from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.user_repository import UserRepository
 from app.security import decode_access_token
+from app.events.event_bus import event_bus, EventType
+from datetime import datetime
 
 
 class ConnectionManager:
@@ -11,10 +13,10 @@ class ConnectionManager:
         self.active_connections: Dict[str, WebSocket] = {}  # key = user_email
 
     async def connect(
-        self,
-        websocket: WebSocket,
-        token: str,
-        db: AsyncSession
+            self,
+            websocket: WebSocket,
+            token: str,
+            db: AsyncSession
     ) -> Optional[str]:
         await websocket.accept()
 
@@ -33,10 +35,23 @@ class ConnectionManager:
             return None
 
         self.active_connections[user_email] = websocket
+
+        # User login event'ini publish et
+        await event_bus.publish(EventType.USER_LOGIN, {
+            "user_email": user_email,
+            "login_time": datetime.now().isoformat()
+        })
+
         return user_email
 
     def disconnect(self, user_email: str):
         self.active_connections.pop(user_email, None)
+
+        # User logout event'ini publish et
+        asyncio.create_task(event_bus.publish(EventType.USER_LOGOUT, {
+            "user_email": user_email,
+            "logout_time": datetime.now().isoformat()
+        }))
 
     async def send_personal_message(self, user_email: str, message: dict):
         websocket = self.active_connections.get(user_email)

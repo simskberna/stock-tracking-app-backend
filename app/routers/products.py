@@ -7,27 +7,38 @@ from app.database import get_db
 from app.notifications import notify_critical_stock
 from app.repositories.product_repository import ProductRepository
 from app.schemas import ProductUpdate, ProductCreate, ProductOut
+from app.tasks import  send_email_critical_product
 
 router = APIRouter()
 
 @router.put("/update/{product_id}")
-async def update_product(product_id: int, product_update: ProductUpdate, db: AsyncSession = Depends(get_db)):
+async def update_product(
+    product_id: int,
+    product_update: ProductUpdate,
+    db: AsyncSession = Depends(get_db)
+):
     repo = ProductRepository(db)
     product = await repo.get(product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # Price güncelle
     if product_update.price is not None:
         product.price = product_update.price
-    if product_update.stock is not None:
-        product = await repo.update_stock(product_id, product_update.stock)
-    else:
-        db.add(product)
-        await db.commit()
-        await db.refresh(product)
 
-    user_email = "berna@example.com"  # gerçek sistemde kullanıcıyı bulup geçireceğiz
+    # Stock güncelle
+    if product_update.stock is not None:
+        product.stock = product_update.stock
+
+    # Veritabanı commit ve refresh
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+
+    # Kullanıcıya kritik stok bildirimi (sadece bu ürün için)
+    user_email = "berna@example.com"
     await notify_critical_stock(user_email, product)
+    await send_email_critical_product(user_email, product)
 
     return product
 

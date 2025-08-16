@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.services.forecast_service import forecast_product_demand
 
-router = APIRouter(prefix="/forecast", tags=["forecast"])
+router = APIRouter()
 
 @router.get("/{product_id}")
 async def get_forecast(

@@ -10,3 +10,8 @@ email-validator>=2.0.0
 websockets
 asyncpg
 dotenv
+pandas
+numpy
+statsmodels
+joblib
+APScheduler

@@ -2,9 +2,10 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status
 from starlette.middleware.cors import CORSMiddleware
 
-from app.routers import auth, users, ws, products, metrics, orders
+from app.routers import auth, users, ws, products, metrics, orders, forecast
 from app.database import Base, engine
 from app.routers.ws import manager
+from app.scheduler import setup_scheduler, periodic_forecast_check
 from app.security import verify_token
 from app.tasks import periodic_critical_stock_check
 from app.events.event_bus import event_bus, EventType
@@ -21,6 +22,7 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(products.router, prefix="/products", tags=["products"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+app.include_router(forecast.router, prefix="/forecast", tags=["forecast"])
 app.include_router(ws.router)
 
 app.add_middleware(
@@ -42,7 +44,8 @@ async def startup():
     event_bus.subscribe(EventType.USER_LOGOUT, handle_user_logout_notification)
 
     asyncio.create_task(periodic_critical_stock_check())
-
+    asyncio.create_task(periodic_forecast_check())
+    setup_scheduler()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
